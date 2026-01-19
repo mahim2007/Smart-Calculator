@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
+<title>Pro Members Zone - Smart Dollar Calculator</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<style>
+body{
+  margin:0;
+  font-family: Arial;
+  background: linear-gradient(135deg,#dbeafe,#f0f9ff);
+  min-height:100vh;
+  padding-bottom:90px;
+}
+.card{
+  background:rgba(255,255,255,.9);
+  backdrop-filter: blur(12px);
+  max-width:420px;
+  margin:20px auto;
+  padding:22px;
+  border-radius:18px;
+  box-shadow:0 10px 30px rgba(0,0,0,.1);
+}
+.logo{width:120px;display:block;margin:0 auto 10px}
+h2{text-align:center;margin:0}
+.subtitle{text-align:center;font-size:13px;color:#555;margin:6px 0 16px}
+
+label{font-size:13px;font-weight:600}
+input,button{
+  width:100%;
+  padding:12px;
+  margin-top:8px;
+  border-radius:10px;
+  border:1px solid #ddd;
+  font-size:16px
+}
+input{background:#f9fafb}
+input[readonly]{background:#eef2f7}
+
+button{
+  background:#2563eb;
+  color:#fff;
+  border:none;
+  font-weight:bold;
+  cursor:pointer;
+  margin-top:14px
+}
+
+.result{
+  margin-top:16px;
+  padding:14px;
+  background:#eef2ff;
+  border-radius:12px;
+  font-size:15px;
+  line-height:1.7
+}
+
+/* Bottom Nav */
+.bottom-nav{
+  position:fixed;
+  bottom:0;
+  left:0;
+  right:0;
+  background:rgba(255,255,255,.9);
+  backdrop-filter: blur(10px);
+  display:flex;
+  justify-content:space-around;
+  padding:10px;
+  box-shadow:0 -5px 20px rgba(0,0,0,.1);
+}
+.nav-btn{
+  flex:1;
+  margin:0 6px;
+  padding:12px;
+  border-radius:16px;
+  background:rgba(37,99,235,.15);
+  color:#2563eb;
+  text-align:center;
+  font-weight:bold;
+  cursor:pointer;
+}
+.nav-btn.active{
+  background:#2563eb;
+  color:white;
+  box-shadow:0 5px 20px rgba(37,99,235,.4);
+}
+.section{display:none;}
+.section.active{display:block;}
+.small{font-size:12px;color:#666;margin-top:4px}
+</style>
+</head>
+
+<body>
+
+<div class="card">
+
+  <img src="logo.png" class="logo">
+
+  <h2>Pro Members Zone</h2>
+  <div class="subtitle">Smart Dollar Calculator</div>
+
+  <label>Today's Dollar Rate (Auto)</label>
+  <input type="number" id="marketRate" readonly>
+  <div class="small" id="rateTime">Loading rate...</div>
+
+  <!-- ===== Section 1 (unchanged) ===== -->
+  <div class="section active" id="section1">
+
+    <label>সেলার ডলার রেট</label>
+    <input type="number" id="buyRate" placeholder="যেমন: 130">
+
+    <label>টাকা (Redotpay তে আপনি পাবেন)</label>
+    <input type="number" id="needBDT" placeholder="যেমন: 125">
+
+    <label>ডলার (Redotpay তে আপনি পাবেন)</label>
+    <input type="number" id="usdNeed" placeholder="যেমন: 1$">
+
+    <label>Binance Pay Fee</label>
+    <input type="text" value="1%" readonly>
+
+    <button onclick="calculateRedotpay()">Calculate</button>
+
+    <div class="result" id="result1"></div>
+  </div>
+
+  <!-- ===== Section 2 (Seller + Converter) ===== -->
+  <div class="section" id="section2">
+
+    <label>টাকা (BDT)</label>
+    <input type="number" id="bdtInput" placeholder="যেমন: 120">
+
+    <label>ডলার (USD)</label>
+    <input type="number" id="usdInput" placeholder="যেমন: 1$">
+
+    <label>সেলার কত টাকা চাচ্ছে</label>
+    <input type="number" id="sellerPrice" placeholder="যেমন: 125">
+
+    <button onclick="checkSeller()">Check Seller</button>
+
+    <div class="result" id="result2"></div>
+  </div>
+
+</div>
+
+<!-- Bottom Buttons -->
+<div class="bottom-nav">
+  <div class="nav-btn active" onclick="showSection(1)">Topup</div>
+  <div class="nav-btn" onclick="showSection(2)">Convert</div>
+</div>
+
+<script>
+const FEE = 1;
+
+const marketRateInput = document.getElementById("marketRate");
+const rateTime = document.getElementById("rateTime");
+
+const needBDTInput = document.getElementById("needBDT");
+const usdNeedInput = document.getElementById("usdNeed");
+
+const bdtInput = document.getElementById("bdtInput");
+const usdInput = document.getElementById("usdInput");
+const sellerPriceInput = document.getElementById("sellerPrice");
+
+/* ===== Auto Dollar Rate ===== */
+async function fetchRate(){
+  try{
+    const res = await fetch("https://api.exchangerate-api.com/v4/latest/USD");
+    const data = await res.json();
+    marketRateInput.value = data.rates.BDT.toFixed(2);
+
+    const now = new Date();
+    rateTime.innerText = "Last updated: " + now.toLocaleTimeString();
+  }catch{
+    rateTime.innerText = "Rate load failed";
+  }
+}
+fetchRate();
+
+/* ===== Section 1 Auto ===== */
+needBDTInput.addEventListener("input", ()=>{
+  const rate = parseFloat(marketRateInput.value);
+  if(!needBDTInput.value){ usdNeedInput.value=""; return; }
+  usdNeedInput.value = ((needBDTInput.value / rate) / (1 - FEE/100)).toFixed(4);
+});
+
+usdNeedInput.addEventListener("input", ()=>{
+  const rate = parseFloat(marketRateInput.value);
+  if(!usdNeedInput.value){ needBDTInput.value=""; return; }
+  needBDTInput.value = ((usdNeedInput.value * (1 - FEE/100)) * rate).toFixed(2);
+});
+
+/* ===== Section 2 Auto Converter ===== */
+bdtInput.addEventListener("input", ()=>{
+  const rate = parseFloat(marketRateInput.value);
+  if(!bdtInput.value){ usdInput.value=""; return; }
+  usdInput.value = (bdtInput.value / rate).toFixed(4);
+});
+
+usdInput.addEventListener("input", ()=>{
+  const rate = parseFloat(marketRateInput.value);
+  if(!usdInput.value){ bdtInput.value=""; return; }
+  bdtInput.value = (usdInput.value * rate).toFixed(2);
+});
+
+/* ===== Bottom Nav ===== */
+function showSection(n){
+  document.querySelectorAll(".section").forEach(s=>s.classList.remove("active"));
+  document.querySelectorAll(".nav-btn").forEach(b=>b.classList.remove("active"));
+  document.getElementById("section"+n).classList.add("active");
+  document.querySelectorAll(".nav-btn")[n-1].classList.add("active");
+}
+
+/* ===== Section 1 ===== */
+function calculateRedotpay(){
+  const buyRate = parseFloat(document.getElementById("buyRate").value);
+  const usd = parseFloat(usdNeedInput.value);
+  const rate = parseFloat(marketRateInput.value);
+
+  if(!buyRate || !usd || !rate){
+    alert("সব ইনপুট ঠিকভাবে দিন");
+    return;
+  }
+
+  const paid = buyRate * usd;
+  const received = usd * (1 - FEE/100) * rate;
+  const loss = paid - received;
+
+  document.getElementById("result1").innerHTML =
+    `আপনি দিবেন: ${paid.toFixed(2)} টাকা<br>
+     আপনি পাবেন: ${received.toFixed(2)} টাকা<br>
+     আপনার লস: ${loss.toFixed(2)} টাকা`;
+}
+
+/* ===== Section 2 Seller Check ===== */
+function checkSeller(){
+  const marketRate = parseFloat(marketRateInput.value);
+  const usd = parseFloat(usdInput.value);
+  const sellerBDT = parseFloat(sellerPriceInput.value);
+
+  if(!usd || !sellerBDT || !marketRate){
+    alert("সব ইনপুট ঠিকভাবে দিন");
+    return;
+  }
+
+  const sellerRate = sellerBDT / usd;
+  const marketValue = usd * marketRate;
+  const loss = sellerBDT - marketValue;
+
+  document.getElementById("result2").innerHTML =
+    `সেলার ডলার রেট ধরছে: ${sellerRate.toFixed(2)} টাকা = 1 USD<br>
+     মার্কেট ভ্যালু: ${marketValue.toFixed(2)} টাকা<br>
+     আপনার লস: ${loss.toFixed(2)} টাকা`;
+}
+</script>
+
+</body>
+</html>
