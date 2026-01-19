@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
+<title>Pro Members Zone - Dollar Calculator</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<style>
+body{
+  margin:0;
+  font-family: Arial;
+  background:#f2f5fb;
+  height:100vh;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+}
+.card{
+  background:#fff;
+  width:92%;
+  max-width:420px;
+  padding:22px;
+  border-radius:16px;
+  box-shadow:0 8px 20px rgba(0,0,0,.08);
+}
+h2{text-align:center;margin:0}
+.subtitle{text-align:center;font-size:13px;color:#666;margin:6px 0 16px}
+
+label{font-size:13px;color:#333;font-weight:600}
+input,button{
+  width:100%;
+  padding:12px;
+  margin-top:8px;
+  border-radius:10px;
+  border:1px solid #ddd;
+  font-size:16px
+}
+input{background:#f9fafb}
+input[readonly]{background:#eef2f7}
+
+button{
+  background:#2563eb;
+  color:#fff;
+  border:none;
+  font-weight:bold;
+  cursor:pointer;
+  margin-top:14px
+}
+
+.small{font-size:12px;color:#666;margin-top:4px}
+.result{
+  margin-top:16px;
+  padding:14px;
+  background:#f1f5ff;
+  border-radius:10px;
+  font-size:15px;
+  line-height:1.7
+}
+
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+.chip{
+  background:#e5e7eb;
+  border-radius:999px;
+  padding:6px 12px;
+  font-size:13px;
+  cursor:pointer
+}
+</style>
+</head>
+
+<body>
+
+<div class="card">
+  <h2>Pro Members Zone</h2>
+  <div class="subtitle">Smart Dollar Loss Calculator</div>
+
+  <label>Today's Dollar Rate (Auto)</label>
+  <input type="number" id="marketRate" readonly>
+  <div class="small" id="rateinfo">Fetching today's rate...</div>
+
+  <label>You Buy (১ ডলার কত টাকায় কিনছেন)</label>
+  <input type="number" id="buyRate" placeholder="যেমন: 130">
+  <div class="small">Recent rates</div>
+  <div class="chips" id="historyChips"></div>
+
+  <label>Redotpay তে আপনার ঠিক কত টাকা লাগবে (BDT)</label>
+  <input type="number" id="needBDT" placeholder="যেমন: 70">
+
+  <label>How many USD you need to buy (Auto)</label>
+  <input type="number" id="dollarAmount" placeholder="Auto calculate হবে">
+
+  <label>Binance → Redotpay Fee</label>
+  <input type="text" value="1%" readonly>
+
+  <button onclick="calculate()">Calculate</button>
+
+  <div class="result" id="result">এখানে রেজাল্ট দেখাবে</div>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function(){
+
+  const marketRateInput = document.getElementById("marketRate");
+  const rateInfo = document.getElementById("rateinfo");
+  const buyRateInput = document.getElementById("buyRate");
+  const needBDTInput = document.getElementById("needBDT");
+  const amountInput = document.getElementById("dollarAmount");
+  const historyChips = document.getElementById("historyChips");
+
+  const FEE = 1; // fixed 1%
+
+  // Auto rate fetch
+  async function fetchRate(){
+    try{
+      const res = await fetch("https://api.exchangerate-api.com/v4/latest/USD");
+      const data = await res.json();
+      const rate = data.rates.BDT;
+      marketRateInput.value = rate.toFixed(2);
+      rateInfo.innerText = "আজকের ডলার রেট অটো আপডেট হয়েছে";
+    }catch{
+      rateInfo.innerText = "রেট আনতে সমস্যা হচ্ছে";
+      marketRateInput.readOnly = false;
+    }
+  }
+
+  // BDT → USD (with fee)
+  needBDTInput.addEventListener("input", ()=>{
+    const rate = parseFloat(marketRateInput.value);
+    const bdt = needBDTInput.value;
+
+    if(!bdt){
+      amountInput.value = "";
+      return;
+    }
+
+    if(rate){
+      const usdNeed = (parseFloat(bdt) / rate) / (1 - FEE/100);
+      amountInput.value = usdNeed.toFixed(4);
+    }
+  });
+
+  // USD → BDT (after fee)
+  amountInput.addEventListener("input", ()=>{
+    const rate = parseFloat(marketRateInput.value);
+    const usd = amountInput.value;
+
+    if(!usd){
+      needBDTInput.value = "";
+      return;
+    }
+
+    if(rate){
+      const receivedUSD = parseFloat(usd) * (1 - FEE/100);
+      needBDTInput.value = (receivedUSD * rate).toFixed(2);
+    }
+  });
+
+  // History system
+  function getHistory(){
+    return JSON.parse(localStorage.getItem("buyRateHistory") || "[]");
+  }
+
+  function saveToHistory(rate){
+    let h = getHistory().filter(x => x !== rate);
+    h.unshift(rate);
+    h = h.slice(0,6);
+    localStorage.setItem("buyRateHistory", JSON.stringify(h));
+    renderChips();
+  }
+
+  function renderChips(){
+    const h = getHistory();
+    historyChips.innerHTML = "";
+    h.forEach(r=>{
+      const chip = document.createElement("div");
+      chip.className = "chip";
+      chip.innerText = r + " টাকা";
+      chip.onclick = ()=>{ buyRateInput.value = r; };
+      historyChips.appendChild(chip);
+    });
+  }
+
+  // Final calculate
+  window.calculate = function(){
+    const marketRate = parseFloat(marketRateInput.value);
+    const buyRate = parseFloat(buyRateInput.value);
+    const usd = parseFloat(amountInput.value);
+
+    if(!marketRate || !buyRate || !usd){
+      alert("সব ইনপুট ঠিকভাবে দিন");
+      return;
+    }
+
+    saveToHistory(buyRate);
+
+    const paidBDT = buyRate * usd;
+    const receivedUSD = usd * (1 - FEE/100);
+    const valueBDT = receivedUSD * marketRate;
+    const lossBDT = paidBDT - valueBDT;
+
+    document.getElementById("result").innerHTML =
+      `আপনি দিয়েছেন: ${paidBDT.toFixed(2)} টাকা<br>
+       আপনি পাচ্ছেন ভ্যালু: ${valueBDT.toFixed(2)} টাকা<br>
+       আপনার লস: ${lossBDT.toFixed(2)} টাকা`;
+  }
+
+  renderChips();
+  fetchRate();
+
+});
+</script>
+
+</body>
+</html>
